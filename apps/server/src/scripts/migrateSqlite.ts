@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 
@@ -7,7 +7,11 @@ type MigrationRow = {
   hash: string;
 };
 
-const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "../../drizzle-sqlite");
+function resolveMigrationsDir(): string {
+  const localDir = join(process.cwd(), "drizzle-sqlite");
+  if (existsSync(localDir)) return localDir;
+  return join(process.cwd(), "apps/server/drizzle-sqlite");
+}
 
 function splitStatements(sql: string): string[] {
   return sql
@@ -35,6 +39,7 @@ export function migrateSqlite(
     ),
   );
 
+  const migrationsDir = resolveMigrationsDir();
   const files = readdirSync(migrationsDir)
     .filter((file) => file.endsWith(".sql"))
     .sort();

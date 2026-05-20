@@ -27,6 +27,7 @@ WORKDIR /app/apps/server
 
 COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/server/node_modules ./node_modules
+COPY --from=builder /app/apps/server/drizzle-sqlite ./drizzle-sqlite
 COPY --from=builder /app/apps/server/dist ./dist
 
 CMD ["node", "dist/index.mjs"]
