@@ -20,6 +20,10 @@ drizzle.config.d.ts
 .env*
 !.env.example
 
+# SQLite database files
+*.sqlite
+*.sqlite-*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
