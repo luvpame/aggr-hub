@@ -1,9 +1,16 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
+import { mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+import Database from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema.js";
 
-const databaseUrl = process.env.DATABASE_URL ?? "postgres://aggrhub:aggrhub@localhost:5432/aggrhub";
+const sqlitePath = process.env.SQLITE_DB_PATH ?? "./aggr-hub.sqlite";
 
-const client = postgres(databaseUrl);
+mkdirSync(dirname(sqlitePath), { recursive: true });
+
+const client = new Database(sqlitePath);
+
+client.pragma("journal_mode = WAL");
+client.pragma("foreign_keys = ON");
 
 export const db = drizzle(client, { schema });

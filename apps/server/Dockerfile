@@ -2,7 +2,7 @@
 FROM node:24-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates \
+    curl ca-certificates git \
     && curl -fsSL https://vite.plus | bash \
     && rm -rf /var/lib/apt/lists/*
 
@@ -13,16 +13,20 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY ./apps/server/package.json /app/apps/server/package.json
 
-RUN vp install --frozen-lockfile --ignore-scripts
+RUN vp install --frozen-lockfile
 
 COPY . .
 
 RUN vp run server#build
 
-FROM gcr.io/distroless/nodejs24-debian13
+FROM node:24-slim
 
-WORKDIR /app
+ENV NODE_ENV=production
 
-COPY --from=builder /app/apps/server/dist ./
+WORKDIR /app/apps/server
 
-CMD ["/app/index.mjs"]
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/apps/server/node_modules ./node_modules
+COPY --from=builder /app/apps/server/dist ./dist
+
+CMD ["node", "dist/index.mjs"]

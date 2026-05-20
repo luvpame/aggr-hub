@@ -6,9 +6,9 @@ try {
 
 export default defineConfig({
   schema: "./src/db/schema.ts",
-  out: "./drizzle",
-  dialect: "postgresql",
+  out: "./drizzle-sqlite",
+  dialect: "sqlite",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgres://aggrhub:aggrhub@localhost:5432/aggrhub",
+    url: process.env.SQLITE_DB_PATH ?? "./aggr-hub.sqlite",
   },
 });

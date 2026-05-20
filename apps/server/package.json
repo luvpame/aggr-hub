@@ -8,10 +8,13 @@
     "build": "tsdown",
     "start": "node dist/index.mjs",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "tsx src/scripts/migrateSqlite.ts",
+    "db:migrate:from-postgres": "tsx src/scripts/migratePostgresToSqlite.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1",
+    "@types/better-sqlite3": "catalog:",
+    "better-sqlite3": "catalog:",
     "drizzle-orm": "^0.44",
     "hono": "^4",
     "marked": "^15",

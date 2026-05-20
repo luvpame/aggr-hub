@@ -1,8 +1,9 @@
 import { Hono } from "hono";
-import { eq, desc, and, sql, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { entries, feeds } from "../db/schema.js";
+import { decodeEntryCursor, getEntryCursorCondition } from "../db/paginationCursor.js";
 import { summarizeItems } from "../services/summarizer.js";
 
 async function batchUpdateEntries(entryIds: string[], data: Partial<typeof entries.$inferInsert>) {
@@ -48,17 +49,11 @@ export const entryRoutes = new Hono()
       conditions.push(eq(entries.isReadLater, isReadLater === "true"));
     }
     if (cursor) {
-      let publishedAt: string;
-      let id: string;
-      try {
-        const decoded = Buffer.from(cursor, "base64").toString();
-        const parts = decoded.split("|");
-        if (parts.length !== 2 || !parts[1]) throw new Error("Invalid cursor format");
-        [publishedAt, id] = parts;
-      } catch {
+      const decoded = decodeEntryCursor(cursor);
+      if (!decoded) {
         return c.json({ error: "Invalid cursor" }, 400);
       }
-      conditions.push(sql`(${entries.publishedAt}, ${entries.id}) < (${publishedAt}, ${id})`);
+      conditions.push(getEntryCursorCondition(decoded));
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;

@@ -36,15 +36,15 @@
 
 ### ⚙️ Backend (`apps/server`)
 
-| Category       | Technology    |
-| -------------- | ------------- |
-| 🔥 Framework   | Hono 4        |
-| 🗄️ Database    | PostgreSQL 17 |
-| 🛢️ ORM         | Drizzle ORM   |
-| 📡 Feed Parser | rss-parser    |
-| ⏰ Scheduler   | node-cron     |
-| 🤖 AI          | OpenAI SDK    |
-| 📦 Build       | tsdown        |
+| Category       | Technology  |
+| -------------- | ----------- |
+| 🔥 Framework   | Hono 4      |
+| 🗄️ Database    | SQLite      |
+| 🛢️ ORM         | Drizzle ORM |
+| 📡 Feed Parser | rss-parser  |
+| ⏰ Scheduler   | node-cron   |
+| 🤖 AI          | OpenAI SDK  |
+| 📦 Build       | tsdown      |
 
 ### 🐳 Infrastructure
 
@@ -87,11 +87,13 @@ docker compose up -d
 
 - 📦 Node.js 24+
 - ⚡ [Vite+](https://vite.dev/plus/) (`vp` CLI)
-- 🐘 PostgreSQL 17
 
 ```bash
 # 依存関係のインストール
 vp install
+
+# SQLite DBを作成
+vp run server#db:migrate
 
 # 開発サーバーを起動
 vp run dev:up
@@ -147,6 +149,17 @@ vp run build -r
 # 🔍 リント・型チェック
 vp check
 ```
+
+### PostgreSQL から SQLite への移行
+
+既存の PostgreSQL データを引き継ぐ場合は、SQLite の migration を適用してから一回だけ import を実行します。
+
+```bash
+vp run server#db:migrate
+DATABASE_URL=postgres://aggrhub:aggrhub@localhost:5432/aggrhub SQLITE_DB_PATH=./aggr-hub.sqlite vp run server#db:migrate:from-postgres
+```
+
+通常起動時は PostgreSQL は不要です。SQLite ファイルの場所は `SQLITE_DB_PATH` で変更できます。
 
 ---
 

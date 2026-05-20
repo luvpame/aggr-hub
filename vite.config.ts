@@ -8,20 +8,8 @@ export default defineConfig({
   run: {
     tasks: {
       // === 開発用 ===
-      "dev:db_up": {
-        command: "docker compose up -d postgres",
-        cache: false,
-      },
-      "dev:db_down": {
-        command: "docker compose down postgres",
-        cache: false,
-      },
-      "dev:db_restart": {
-        command: "vp run dev:db_down && vp run dev:db_up",
-        cache: false,
-      },
       "dev:up": {
-        command: "docker compose up -d postgres && vp run server#dev & vp run web#dev",
+        command: "vp run server#dev & vp run web#dev",
         cache: false,
       },
       // === 本番用（全サービス） ===
