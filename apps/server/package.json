@@ -17,8 +17,6 @@
     "better-sqlite3": "catalog:",
     "drizzle-orm": "^0.44",
     "hono": "^4",
-    "marked": "^15",
-    "node-cron": "^3",
     "openai": "catalog:",
     "postgres": "^3",
     "rss-parser": "^3",
@@ -26,7 +24,6 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "@types/node-cron": "^3",
     "drizzle-kit": "^0.31",
     "tsx": "^4",
     "typescript": "catalog:"
