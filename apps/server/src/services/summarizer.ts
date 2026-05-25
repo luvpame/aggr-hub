@@ -14,6 +14,8 @@ const GITHUB_RELEASES_SHORT_SYSTEM_PROMPT =
 const GITHUB_RELEASES_SYSTEM_PROMPT =
   "あなたはGitHub Releasesの翻訳・要約アシスタントです。与えられたリリースノートの変更内容を日本語に翻訳し、Markdown箇条書きで網羅的にまとめてください。カテゴリ（新機能、バグ修正、破壊的変更など）があればそのまま見出しとして残してください。要約のみを返してください。";
 
+const SHORT_SUMMARY_MAX_COMPLETION_TOKENS = 800;
+const DETAILED_SUMMARY_MAX_COMPLETION_TOKENS = 4096;
 const OPENAI_MODEL = "gpt-5.4-nano";
 
 interface LLMClient {
@@ -59,7 +61,7 @@ async function callLLMWithClient(
           { role: "system", content: systemPrompt },
           { role: "user", content: text },
         ],
-        temperature: 0.3,
+        reasoning_effort: "none",
         max_completion_tokens: maxCompletionTokens,
       });
       const raw = response.choices[0]?.message?.content;
@@ -113,11 +115,16 @@ export async function summarizeText(
 
   if (feedType === "github-releases") {
     const input = text.slice(0, 2000);
-    return callLLM(clients, GITHUB_RELEASES_SHORT_SYSTEM_PROMPT, input, 200);
+    return callLLM(
+      clients,
+      GITHUB_RELEASES_SHORT_SYSTEM_PROMPT,
+      input,
+      SHORT_SUMMARY_MAX_COMPLETION_TOKENS,
+    );
   }
 
   const input = text.slice(0, 2000);
-  return callLLM(clients, DEFAULT_SYSTEM_PROMPT, input, 200);
+  return callLLM(clients, DEFAULT_SYSTEM_PROMPT, input, SHORT_SUMMARY_MAX_COMPLETION_TOKENS);
 }
 
 export interface SummaryResult {
@@ -167,8 +174,18 @@ export async function summarizeItems(
       if (feedType === "github-releases") {
         const shortInput = item.text.slice(0, 2000);
         const [summary, detailedSummary] = await Promise.all([
-          callLLM(clients, GITHUB_RELEASES_SHORT_SYSTEM_PROMPT, shortInput, 200),
-          callLLM(clients, GITHUB_RELEASES_SYSTEM_PROMPT, item.text, 4096),
+          callLLM(
+            clients,
+            GITHUB_RELEASES_SHORT_SYSTEM_PROMPT,
+            shortInput,
+            SHORT_SUMMARY_MAX_COMPLETION_TOKENS,
+          ),
+          callLLM(
+            clients,
+            GITHUB_RELEASES_SYSTEM_PROMPT,
+            item.text,
+            DETAILED_SUMMARY_MAX_COMPLETION_TOKENS,
+          ),
         ]);
         console.log(
           `[summarizer] item ${item.id} result: summary=${!!summary}, detailedSummary=${!!detailedSummary}`,
@@ -181,7 +198,12 @@ export async function summarizeItems(
         }
       } else {
         const input = item.text.slice(0, 2000);
-        const summary = await callLLM(clients, DEFAULT_SYSTEM_PROMPT, input, 200);
+        const summary = await callLLM(
+          clients,
+          DEFAULT_SYSTEM_PROMPT,
+          input,
+          SHORT_SUMMARY_MAX_COMPLETION_TOKENS,
+        );
         console.log(`[summarizer] item ${item.id} result: summary=${!!summary}`);
         if (summary) {
           results.set(item.id, { summary });
