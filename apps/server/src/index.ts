@@ -3,13 +3,16 @@ try {
 } catch {}
 
 import { serve } from "@hono/node-server";
-import app from "./app.js";
+import { createApp } from "./app.js";
+import { db } from "./db/index.js";
+import type { AppEnv } from "./db/d1.js";
 import { startScheduler } from "./cron/scheduler.js";
 
 const port = Number(process.env.PORT ?? 3000);
+const app = createApp(db, process.env as AppEnv);
 
 serve({ fetch: app.fetch, port }, (info) => {
   console.log(`Server running at http://localhost:${info.port}`);
 });
 
-startScheduler();
+startScheduler(db, process.env as AppEnv);

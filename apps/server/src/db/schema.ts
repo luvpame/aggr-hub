@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const feedTypes = ["rss", "atom", "github-releases"] as const;
@@ -9,7 +8,7 @@ export type SummaryStatus = (typeof summaryStatuses)[number];
 
 export const feeds = sqliteTable("feeds", {
   id: text("id")
-    .$defaultFn(() => randomUUID())
+    .$defaultFn(() => crypto.randomUUID())
     .primaryKey(),
   url: text("url").notNull().unique(),
   title: text("title"),
@@ -34,7 +33,7 @@ export const entries = sqliteTable(
   "entries",
   {
     id: text("id")
-      .$defaultFn(() => randomUUID())
+      .$defaultFn(() => crypto.randomUUID())
       .primaryKey(),
     feedId: text("feed_id")
       .notNull()

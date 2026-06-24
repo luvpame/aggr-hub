@@ -1,21 +1,29 @@
 import { eq } from "drizzle-orm";
-import { db } from "../db/index.js";
+import type { AppEnv, Db } from "../db/d1.js";
 import { feeds, entries, type feeds as FeedsTable } from "../db/schema.js";
 import { parseRssFeed } from "./rssParser.js";
 import { fetchOgImages } from "./ogpFetcher.js";
 import { summarizeItems } from "./summarizer.js";
+import { runBackgroundTask } from "../utils/backgroundTask.js";
 
 type Feed = typeof FeedsTable.$inferSelect;
+const ENTRY_INSERT_BATCH_SIZE = 5;
 
-export async function fetchAndStoreFeed(feed: Feed): Promise<void> {
+export async function fetchAndStoreFeed(
+  db: Db,
+  feed: Feed,
+  env: AppEnv = {},
+  ctx?: ExecutionContext,
+): Promise<void> {
   try {
-    await fetchRssFeed(feed);
+    await fetchRssFeed(db, feed, env, ctx);
   } catch (error) {
     console.error(`Failed to fetch feed ${feed.url}:`, error);
   }
 }
 
 async function updateFeedTimestamp(
+  db: Db,
   feedId: string,
   cacheHeaders?: { etag?: string; lastModified?: string },
 ): Promise<void> {
@@ -38,7 +46,18 @@ function deriveSummaryStatus(
   return "completed";
 }
 
-async function fetchRssFeed(feed: Feed): Promise<void> {
+function envLimit(value: string | undefined, fallback: number): number {
+  const limit = Number(value ?? fallback);
+  if (!Number.isFinite(limit)) return fallback;
+  return Math.max(0, limit);
+}
+
+async function fetchRssFeed(
+  db: Db,
+  feed: Feed,
+  env: AppEnv,
+  ctx?: ExecutionContext,
+): Promise<void> {
   const result = await parseRssFeed(feed.url, {
     etag: feed.lastEtag,
     lastModified: feed.lastModified,
@@ -46,7 +65,7 @@ async function fetchRssFeed(feed: Feed): Promise<void> {
 
   if (result === null) {
     console.log(`[feedFetcher] feed ${feed.id} not modified (304)`);
-    await updateFeedTimestamp(feed.id);
+    await updateFeedTimestamp(db, feed.id);
     return;
   }
 
@@ -73,27 +92,40 @@ async function fetchRssFeed(feed: Feed): Promise<void> {
   }));
 
   if (rows.length === 0) {
-    await updateFeedTimestamp(feed.id, cacheHeaders);
+    await updateFeedTimestamp(db, feed.id, cacheHeaders);
     return;
   }
 
-  const inserted = await db.insert(entries).values(rows).onConflictDoNothing().returning({
-    id: entries.id,
-    url: entries.url,
-    contentText: entries.contentText,
-    ogImageUrl: entries.ogImageUrl,
-  });
+  const inserted = [];
+  for (let i = 0; i < rows.length; i += ENTRY_INSERT_BATCH_SIZE) {
+    // ponytail: small fixed D1 batch; raise it only after measuring D1 variable limits.
+    const batch = rows.slice(i, i + ENTRY_INSERT_BATCH_SIZE);
+    inserted.push(
+      ...(await db.insert(entries).values(batch).onConflictDoNothing().returning({
+        id: entries.id,
+        url: entries.url,
+        contentText: entries.contentText,
+        ogImageUrl: entries.ogImageUrl,
+      })),
+    );
+  }
 
   console.log(`[feedFetcher] inserted ${inserted.length} new entries for feed ${feed.id}`);
 
-  await updateFeedTimestamp(feed.id, cacheHeaders);
+  await updateFeedTimestamp(db, feed.id, cacheHeaders);
+
+  const ogpLimit = envLimit(env.OGP_MAX_ITEMS_PER_FEED, 10);
+  const summaryLimit = envLimit(env.SUMMARY_MAX_ITEMS_PER_FEED, 10);
 
   if (!skipOgp) {
-    updateOgpInBackground(inserted, feed.id);
+    runBackgroundTask(ctx, updateOgp(db, inserted.slice(0, ogpLimit), feed.id));
   }
 
   if (inserted.length > 0) {
-    summarizeInBackground(inserted, feed.feedType);
+    runBackgroundTask(
+      ctx,
+      summarizeEntries(db, inserted.slice(0, summaryLimit), feed.feedType, env),
+    );
   }
 }
 
@@ -104,57 +136,63 @@ type InsertedEntry = {
   ogImageUrl: string | null;
 };
 
-function updateOgpInBackground(inserted: InsertedEntry[], feedId: string): void {
+async function updateOgp(db: Db, inserted: InsertedEntry[], feedId: string): Promise<void> {
   const needsOgp = inserted.filter((e) => !e.ogImageUrl && e.url);
   if (needsOgp.length === 0) return;
 
-  fetchOgImages(needsOgp.map((e) => ({ url: e.url ?? undefined })))
-    .then(async (images) => {
-      for (let i = 0; i < needsOgp.length; i++) {
-        if (images[i]) {
-          await db
-            .update(entries)
-            .set({ ogImageUrl: images[i] })
-            .where(eq(entries.id, needsOgp[i].id));
-        }
+  try {
+    const images = await fetchOgImages(needsOgp.map((e) => ({ url: e.url ?? undefined })));
+    for (let i = 0; i < needsOgp.length; i++) {
+      if (images[i]) {
+        await db
+          .update(entries)
+          .set({ ogImageUrl: images[i] })
+          .where(eq(entries.id, needsOgp[i].id));
       }
-      console.log(`[feedFetcher] OGP images updated for feed ${feedId}`);
-    })
-    .catch((error) => {
-      console.error("[feedFetcher] OGP fetch failed:", error);
-    });
+    }
+    console.log(`[feedFetcher] OGP images updated for feed ${feedId}`);
+  } catch (error) {
+    console.error("[feedFetcher] OGP fetch failed:", error);
+  }
 }
 
-function summarizeInBackground(inserted: InsertedEntry[], feedType: Feed["feedType"]): void {
-  summarizeItems(
-    inserted.map((e) => ({ id: e.id, text: e.contentText })),
-    feedType,
-  )
-    .then(async (summaries) => {
-      console.log(
-        `[feedFetcher] summarization done: ${summaries.size}/${inserted.length} items got summaries`,
-      );
-      for (const e of inserted) {
-        const summaryResult = summaries.get(e.id);
-        if (summaryResult) {
-          const summaryStatus = deriveSummaryStatus(summaryResult, feedType);
-          await db
-            .update(entries)
-            .set({
-              summary: summaryResult.summary,
-              detailedSummary: summaryResult.detailedSummary ?? null,
-              summaryStatus,
-            })
-            .where(eq(entries.id, e.id));
-        } else {
-          await db.update(entries).set({ summaryStatus: "failed" }).where(eq(entries.id, e.id));
-        }
-      }
-    })
-    .catch(async (error) => {
-      console.error("[feedFetcher] background summarization failed:", error);
-      for (const e of inserted) {
+async function summarizeEntries(
+  db: Db,
+  inserted: InsertedEntry[],
+  feedType: Feed["feedType"],
+  env: AppEnv,
+): Promise<void> {
+  if (inserted.length === 0) return;
+
+  try {
+    const summaries = await summarizeItems(
+      inserted.map((e) => ({ id: e.id, text: e.contentText })),
+      feedType,
+      env,
+    );
+    console.log(
+      `[feedFetcher] summarization done: ${summaries.size}/${inserted.length} items got summaries`,
+    );
+    for (const e of inserted) {
+      const summaryResult = summaries.get(e.id);
+      if (summaryResult) {
+        const summaryStatus = deriveSummaryStatus(summaryResult, feedType);
+        await db
+          .update(entries)
+          .set({
+            summary: summaryResult.summary,
+            detailedSummary: summaryResult.detailedSummary ?? null,
+            summaryStatus,
+          })
+          .where(eq(entries.id, e.id));
+      } else {
         await db.update(entries).set({ summaryStatus: "failed" }).where(eq(entries.id, e.id));
       }
-    });
+    }
+  } catch (error) {
+    console.error("[feedFetcher] background summarization failed:", error);
+    for (const e of inserted) {
+      await db.update(entries).set({ summaryStatus: "failed" }).where(eq(entries.id, e.id));
+    }
+  }
 }

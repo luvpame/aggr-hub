@@ -1,0 +1,34 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "aggr-hub",
+  "compatibility_date": "2026-06-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "./src/worker.ts",
+  "assets": {
+    "directory": "../web/dist",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "aggr-hub",
+      "database_id": "6004c26b-6bf5-47ed-8218-66d46d6eebee",
+      "migrations_dir": "./drizzle-sqlite",
+    },
+  ],
+  "triggers": {
+    "crons": ["*/15 * * * *"],
+  },
+  "vars": {
+    "CRON_MAX_FEEDS": "2",
+    "OGP_MAX_ITEMS_PER_FEED": "10",
+    "SUMMARY_MAX_ITEMS_PER_FEED": "10",
+    "SUMMARY_API_BASE_URL": "",
+    "SUMMARY_MODEL": "default",
+  },
+  "secrets": {
+    "required": [],
+  },
+}

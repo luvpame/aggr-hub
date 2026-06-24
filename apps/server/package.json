@@ -9,7 +9,12 @@
     "start": "node dist/index.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrateSqlite.ts",
-    "db:migrate:from-postgres": "tsx src/scripts/migratePostgresToSqlite.ts"
+    "db:migrate:from-postgres": "tsx src/scripts/migratePostgresToSqlite.ts",
+    "cf:types": "wrangler types src/worker-configuration.d.ts --config wrangler.jsonc --include-runtime false --strict-vars false",
+    "cf:dev": "vp run web#build && wrangler dev --config wrangler.jsonc --test-scheduled",
+    "cf:deploy": "vp run web#build && wrangler deploy --config wrangler.jsonc",
+    "d1:migrate:local": "wrangler d1 migrations apply aggr-hub --local --config wrangler.jsonc",
+    "d1:migrate:remote": "wrangler d1 migrations apply aggr-hub --remote --config wrangler.jsonc"
   },
   "dependencies": {
     "@hono/node-server": "^1",
@@ -23,9 +28,11 @@
     "tsdown": "catalog:"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "catalog:",
     "@types/node": "catalog:",
     "drizzle-kit": "^0.31",
     "tsx": "^4",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "catalog:"
   }
 }

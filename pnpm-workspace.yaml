@@ -2,6 +2,7 @@ packages:
   - apps/*
 
 catalog:
+  "@cloudflare/workers-types": ^4.20260624.1
   "@tailwindcss/vite": ^4.2.1
   "@tanstack/react-query": ^5.90.21
   "@types/better-sqlite3": ^7.6.13
@@ -24,6 +25,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vite-plus: latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest
+  wrangler: ^4.104.0
 
 catalogMode: prefer
 overrides:

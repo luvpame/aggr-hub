@@ -23,19 +23,26 @@ interface LLMClient {
   model: string;
 }
 
-function createClients(): LLMClient[] {
+export type SummaryEnv = {
+  SUMMARY_API_BASE_URL?: string;
+  SUMMARY_API_KEY?: string;
+  SUMMARY_MODEL?: string;
+  OPENAI_API_KEY?: string;
+};
+
+function createClients(env: SummaryEnv = {}): LLMClient[] {
   const clients: LLMClient[] = [];
-  if (process.env.OPENAI_API_KEY) {
-    clients.push({ client: new OpenAI(), model: OPENAI_MODEL });
-  }
-  if (process.env.OLLAMA_BASE_URL) {
+  if (env.SUMMARY_API_BASE_URL) {
     clients.push({
       client: new OpenAI({
-        baseURL: process.env.OLLAMA_BASE_URL + "/v1",
-        apiKey: "ollama",
+        baseURL: env.SUMMARY_API_BASE_URL,
+        apiKey: env.SUMMARY_API_KEY ?? "free",
       }),
-      model: process.env.OLLAMA_MODEL ?? "llama3.2",
+      model: env.SUMMARY_MODEL ?? "default",
     });
+  }
+  if (env.OPENAI_API_KEY) {
+    clients.push({ client: new OpenAI({ apiKey: env.OPENAI_API_KEY }), model: OPENAI_MODEL });
   }
   console.log(
     `[summarizer] createClients: ${clients.length} client(s) available [${clients.map((c) => c.model).join(", ")}]`,
@@ -107,10 +114,11 @@ async function callLLM(
 export async function summarizeText(
   text: string,
   feedType?: FeedType,
+  env: SummaryEnv = {},
 ): Promise<string | undefined> {
   if (text.length < MIN_TEXT_LENGTH) return text;
 
-  const clients = createClients();
+  const clients = createClients(env);
   if (clients.length === 0) return undefined;
 
   if (feedType === "github-releases") {
@@ -136,6 +144,7 @@ export interface SummaryResult {
 export async function summarizeItems(
   items: { id: string; text: string | null }[],
   feedType?: FeedType,
+  env: SummaryEnv = {},
   concurrency?: number,
 ): Promise<Map<string, SummaryResult>> {
   const effectiveConcurrency = concurrency ?? (feedType === "github-releases" ? 1 : 3);
@@ -146,7 +155,7 @@ export async function summarizeItems(
     `[summarizer] summarizeItems: ${items.length} items, feedType=${feedType}, concurrency=${effectiveConcurrency}`,
   );
 
-  const clients = createClients();
+  const clients = createClients(env);
   if (clients.length === 0) {
     console.warn("[summarizer] no LLM clients available, skipping summarization");
     return results;

@@ -6,9 +6,13 @@ export type EntryCursor = {
   publishedAt: Date;
 };
 
+export function encodeEntryCursor(publishedAt: Date | null, id: string): string {
+  return btoa(`${publishedAt?.toISOString() ?? ""}|${id}`);
+}
+
 export function decodeEntryCursor(cursor: string): EntryCursor | null {
   try {
-    const decoded = Buffer.from(cursor, "base64").toString();
+    const decoded = atob(cursor);
     const [publishedAt, id] = decoded.split("|");
     if (!publishedAt || !id) return null;
 
