@@ -1,9 +1,0 @@
-*.md
-.zed
-.claude
-.pnpm-store
-node_modules
-dist
-apps/*/dist
-*.sqlite
-*.sqlite-*

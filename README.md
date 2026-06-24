@@ -46,14 +46,12 @@
 | 🤖 AI          | OpenAI SDK  |
 | 📦 Build       | tsdown      |
 
-### 🐳 Infrastructure
+### 🧰 Tooling
 
-| Category           | Technology     |
-| ------------------ | -------------- |
-| 📦 Container       | Docker Compose |
-| 🌐 Web Server      | nginx          |
-| 📋 Package Manager | pnpm           |
-| ⚡ Toolchain       | Vite+          |
+| Category           | Technology |
+| ------------------ | ---------- |
+| 📋 Package Manager | pnpm       |
+| ⚡ Toolchain       | Vite+      |
 
 ---
 
@@ -64,22 +62,12 @@ aggr-hub/
 ├── 📂 apps/
 │   ├── 🖥️ web/          # React フロントエンド
 │   └── ⚙️ server/       # Hono バックエンド API
-├── 🐳 compose.yml        # Docker Compose 設定
-├── 🌐 nginx/             # nginx 設定
 └── 📋 pnpm-workspace.yaml
 ```
 
 ---
 
 ## 🚀 Getting Started
-
-### 🐳 Docker（推奨）
-
-```bash
-docker compose up -d
-```
-
-`http://localhost` でアクセスできます。
 
 ### 💻 ローカル開発
 
