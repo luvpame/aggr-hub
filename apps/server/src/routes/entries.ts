@@ -2,14 +2,13 @@ import { Hono } from "hono";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import type { AppEnv, Db } from "../db/d1.js";
-import { entries, feeds } from "../db/schema.js";
+import { entries } from "../db/schema.js";
 import {
   decodeEntryCursor,
   encodeEntryCursor,
   getEntryCursorCondition,
 } from "../db/paginationCursor.js";
-import { summarizeItems } from "../services/summarizer.js";
-import { runBackgroundTask } from "../utils/backgroundTask.js";
+import { enqueueEntryEnrichment } from "../services/entryEnrichment.js";
 
 async function batchUpdateEntries(
   db: Db,
@@ -35,16 +34,7 @@ async function bulkUpdateEntries(
     .where(and(...conditions));
 }
 
-function getSummaryStatus(
-  result: { skipped?: boolean; detailedSummary?: string | null },
-  feedType?: string,
-): "skipped" | "completed" | "failed" {
-  if (result.skipped) return "skipped";
-  if (feedType === "github-releases" && !result.detailedSummary) return "failed";
-  return "completed";
-}
-
-export function createEntryRoutes(db: Db, env: AppEnv = {}, ctx?: ExecutionContext): Hono {
+export function createEntryRoutes(db: Db, env: AppEnv = {}, _ctx?: ExecutionContext): Hono {
   return new Hono()
     .get("/entries", async (c) => {
       const feedId = c.req.query("feedId");
@@ -159,38 +149,12 @@ export function createEntryRoutes(db: Db, env: AppEnv = {}, ctx?: ExecutionConte
       const [entry] = await db.select().from(entries).where(eq(entries.id, id));
       if (!entry) return c.json({ error: "Entry not found" }, 404);
 
-      const [feed] = await db.select().from(feeds).where(eq(feeds.id, entry.feedId));
-
       await db
         .update(entries)
         .set({ summaryStatus: "pending", summary: null, detailedSummary: null })
         .where(eq(entries.id, id));
 
-      const task = summarizeItems([{ id: entry.id, text: entry.contentText }], feed?.feedType, env)
-        .then(async (summaries) => {
-          const result = summaries.get(entry.id);
-          if (result) {
-            const summaryStatus = getSummaryStatus(result, feed?.feedType);
-            await db
-              .update(entries)
-              .set({
-                summary: result.summary,
-                detailedSummary: result.detailedSummary ?? null,
-                summaryStatus,
-              })
-              .where(eq(entries.id, entry.id));
-          } else {
-            await db
-              .update(entries)
-              .set({ summaryStatus: "failed" })
-              .where(eq(entries.id, entry.id));
-          }
-        })
-        .catch(async (error) => {
-          console.error("Retry summarization failed:", error);
-          await db.update(entries).set({ summaryStatus: "failed" }).where(eq(entries.id, entry.id));
-        });
-      runBackgroundTask(ctx, task);
+      await enqueueEntryEnrichment(env.ENTRY_ENRICHMENT_QUEUE, [entry.id]);
 
       return c.json({ success: true });
     });

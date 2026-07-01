@@ -10,6 +10,7 @@ export type AppEnv = {
   OGP_MAX_ITEMS_PER_FEED?: string;
   SUMMARY_MAX_ITEMS_PER_FEED?: string;
   OPENAI_API_KEY?: string;
+  ENTRY_ENRICHMENT_QUEUE?: Queue<{ entryId: string }>;
 };
 
 export type WorkerEnv = Env & AppEnv;

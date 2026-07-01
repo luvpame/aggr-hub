@@ -2,6 +2,29 @@ export function getDueFeedCutoff(intervalMinutes: number, now = new Date()): Dat
   return new Date(now.getTime() - intervalMinutes * 60_000);
 }
 
+type DueFeed = {
+  lastFetchedAt: Date | null;
+  fetchIntervalMinutes: number;
+  createdAt: Date;
+};
+
+function dueFeedTime(feed: DueFeed): number {
+  return feed.lastFetchedAt?.getTime() ?? 0;
+}
+
+export function selectDueFeedBatch<T extends DueFeed>(feeds: T[], now: Date, limit: number): T[] {
+  return feeds
+    .filter(
+      (feed) =>
+        feed.lastFetchedAt === null ||
+        feed.lastFetchedAt < getDueFeedCutoff(feed.fetchIntervalMinutes, now),
+    )
+    .sort(
+      (a, b) => dueFeedTime(a) - dueFeedTime(b) || a.createdAt.getTime() - b.createdAt.getTime(),
+    )
+    .slice(0, limit);
+}
+
 export const FEED_REFRESH_CONCURRENCY = 2;
 
 export async function processDueFeeds<T>(

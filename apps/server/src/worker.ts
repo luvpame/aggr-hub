@@ -1,6 +1,10 @@
 import { createApp } from "./app.js";
 import { runScheduledRefresh } from "./cron/scheduler.js";
 import { createDb, type WorkerEnv } from "./db/d1.js";
+import {
+  processEntryEnrichmentBatch,
+  type EntryEnrichmentMessage,
+} from "./services/entryEnrichment.js";
 
 export default {
   fetch(request, env, ctx) {
@@ -11,4 +15,8 @@ export default {
   scheduled(_controller, env, ctx) {
     ctx.waitUntil(runScheduledRefresh(createDb(env), env, ctx));
   },
-} satisfies ExportedHandler<WorkerEnv>;
+
+  queue(batch, env, ctx) {
+    ctx.waitUntil(processEntryEnrichmentBatch(createDb(env), batch.messages, env));
+  },
+} satisfies ExportedHandler<WorkerEnv, EntryEnrichmentMessage>;

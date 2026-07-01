@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vite-plus/test";
-import { getDueFeedCutoff, processDueFeeds } from "./dueFeeds.js";
+import { getDueFeedCutoff, processDueFeeds, selectDueFeedBatch } from "./dueFeeds.js";
 
 describe("getDueFeedCutoff", () => {
   test("subtracts fetch interval from current time", () => {
@@ -26,5 +26,36 @@ describe("processDueFeeds", () => {
     );
 
     expect(maxActiveCount).toBe(2);
+  });
+});
+
+describe("selectDueFeedBatch", () => {
+  test("selects the oldest due feeds first", () => {
+    const now = new Date("2026-05-20T12:00:00.000Z");
+    const feeds = [
+      {
+        url: "github-release",
+        lastFetchedAt: new Date("2026-05-20T11:30:00.000Z"),
+        fetchIntervalMinutes: 60,
+        createdAt: new Date("2026-05-01T00:00:00.000Z"),
+      },
+      {
+        url: "rss-old",
+        lastFetchedAt: new Date("2026-05-20T09:00:00.000Z"),
+        fetchIntervalMinutes: 60,
+        createdAt: new Date("2026-05-02T00:00:00.000Z"),
+      },
+      {
+        url: "rss-never-fetched",
+        lastFetchedAt: null,
+        fetchIntervalMinutes: 60,
+        createdAt: new Date("2026-05-03T00:00:00.000Z"),
+      },
+    ];
+
+    expect(selectDueFeedBatch(feeds, now, 2).map((feed) => feed.url)).toEqual([
+      "rss-never-fetched",
+      "rss-old",
+    ]);
   });
 });
